@@ -1,0 +1,17 @@
+services:
+  # Web Service - Backend + Frontend
+  - type: web
+    name: drawguess-game
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: cd drawguess-server && npm install
+    startCommand: cd drawguess-server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: ALLOWED_ORIGINS
+        generateValue: true
+        # Will be set to your Render URL automatically

@@ -1,0 +1,13 @@
+{
+  "name": "drawguess-admin",
+  "version": "1.0.0",
+  "description": "Admin Dashboard for DrawGuess",
+  "scripts": {
+    "start": "serve public -l 3002"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.1"
+  }
+}

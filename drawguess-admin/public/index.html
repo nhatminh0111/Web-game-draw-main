@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DrawGuess Admin Dashboard</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 DrawGuess Admin Dashboard</h1>
+            <div class="status" id="connectionStatus">
+                <span class="dot disconnected"></span> Connecting...
+            </div>
+        </header>
+
+        <main>
+            <div class="card-deck">
+                <div class="card">
+                    <h2>Players Online</h2>
+                    <p class="stat" id="playerCount">0</p>
+                </div>
+                <div class="card">
+                    <h2>Active Rooms</h2>
+                    <p class="stat" id="roomCount">0</p>
+                </div>
+            </div>
+
+            <div class="room-list-container">
+                <h2>Room Details</h2>
+                <table id="roomList">
+                    <thead>
+                        <tr>
+                            <th>Room ID</th>
+                            <th>Players</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Room data will be inserted here by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

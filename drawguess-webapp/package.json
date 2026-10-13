@@ -1,0 +1,13 @@
+{
+  "name": "drawguess-webapp",
+  "version": "1.0.0",
+  "description": "Web App for DrawGuess players",
+  "scripts": {
+    "start": "serve public"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.1"
+  }
+}

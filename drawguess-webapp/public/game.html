@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DrawGuess - Game</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="game.css" />
+  </head>
+  <body>
+    <div class="bg-pattern"></div>
+    
+    <header class="game-header">
+      <div class="timer">⏱ <span id="timer">75</span></div>
+      <div class="round-info">
+        <span>Round <span id="round">1</span> of <span id="totalRounds">3</span></span>
+        <button id="shareRoomBtn" class="share-btn" title="Share room code">📋 Share</button>
+      </div>
+      <div class="word-hint" id="wordHint">GUESS THIS: _ _ _ _ _</div>
+      <button id="settingsBtn" class="settings-btn" aria-label="Mở cài đặt">⚙</button>
+    </header>
+
+    <main class="game-layout">
+      <!-- Left: Players list -->
+      <aside class="players-panel">
+        <div class="player-item">
+          <span class="rank">#1</span>
+          <span class="player-avatar">😀</span>
+          <span class="player-name" id="player1Name">Player1</span>
+          <span class="player-score">0 points</span>
+        </div>
+        <div class="player-item active">
+          <span class="rank">#1</span>
+          <span class="player-avatar">🤖</span>
+          <span class="player-name" id="player2Name">Player2</span>
+          <span class="player-score">0 points</span>
+        </div>
+      </aside>
+
+      <!-- Center: Canvas -->
+      <section class="canvas-container">
+        <canvas id="drawCanvas" width="800" height="600"></canvas>
+        <div class="drawing-status" id="drawingStatus">Waiting...</div>
+      </section>
+
+      <!-- Right: Chat or Color Palette -->
+      <aside class="right-panel" id="rightPanel">
+        <!-- Chat for guessers -->
+        <div class="chat-panel" id="chatPanel">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg system">Welcome to the game!</div>
+          </div>
+          <div class="chat-input-wrap">
+            <input type="text" id="chatInput" placeholder="Type your guess here..." maxlength="50" />
+            <button id="sendChat">Send</button>
+          </div>
+        </div>
+
+        <!-- Color palette for drawer -->
+        <div class="palette-panel" id="palettePanel" style="display: none;">
+          <div class="palette-title">Color Palette</div>
+          <div class="color-grid" id="colorGrid">
+            <!-- Colors hardcoded for reliability -->
+            <button class="color-btn" style="background-color: #000000;" data-color="#000000"></button>
+            <button class="color-btn" style="background-color: #FFFFFF;" data-color="#FFFFFF"></button>
+            <button class="color-btn" style="background-color: #C0C0C0;" data-color="#C0C0C0"></button>
+            <button class="color-btn" style="background-color: #808080;" data-color="#808080"></button>
+            <button class="color-btn" style="background-color: #FF0000;" data-color="#FF0000"></button>
+            <button class="color-btn" style="background-color: #800000;" data-color="#800000"></button>
+            <button class="color-btn" style="background-color: #FFFF00;" data-color="#FFFF00"></button>
+            <button class="color-btn" style="background-color: #808000;" data-color="#808000"></button>
+            <button class="color-btn" style="background-color: #00FF00;" data-color="#00FF00"></button>
+            <button class="color-btn" style="background-color: #008000;" data-color="#008000"></button>
+            <button class="color-btn" style="background-color: #00FFFF;" data-color="#00FFFF"></button>
+            <button class="color-btn" style="background-color: #008080;" data-color="#008080"></button>
+            <button class="color-btn" style="background-color: #0000FF;" data-color="#0000FF"></button>
+            <button class="color-btn" style="background-color: #000080;" data-color="#000080"></button>
+            <button class="color-btn" style="background-color: #FF00FF;" data-color="#FF00FF"></button>
+            <button class="color-btn" style="background-color: #800080;" data-color="#800080"></button>
+            <button class="color-btn" style="background-color: #FFA500;" data-color="#FFA500"></button>
+            <button class="color-btn" style="background-color: #A52A2A;" data-color="#A52A2A"></button>
+            <button class="color-btn" style="background-color: #FFC0CB;" data-color="#FFC0CB"></button>
+            <button class="color-btn" style="background-color: #FFD700;" data-color="#FFD700"></button>
+          </div>
+          <div class="tools">
+            <button class="tool-btn" data-tool="pen" title="Pen">🖊</button>
+            <button class="tool-btn" data-tool="fill" title="Fill">🪣</button>
+            <button class="tool-btn" data-tool="eraser" title="Eraser">🧹</button>
+            <button class="tool-btn" data-tool="clear" title="Clear canvas">🗑</button>
+          </div>
+          <div class="brush-size">
+            <label>Size: <span id="brushSizeLabel">5</span>px</label>
+            <input type="range" id="brushSize" min="1" max="20" value="5" />
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Word Selection Modal -->
+    <div class="modal-overlay hidden" id="wordModal">
+      <div class="modal-content">
+        <h2 class="modal-title">Choose a word</h2>
+        <div class="word-choices" id="wordChoices">
+          <!-- Word buttons will be generated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay hidden" id="settingsModal" aria-hidden="true">
+      <div class="modal-content settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+        <h2 class="modal-title" id="settingsModalTitle">Cài đặt</h2>
+        <div class="settings-actions">
+          <button id="leaveRoomBtn" class="settings-action leave-room-btn">
+            <svg class="settings-action-icon" viewBox="0 0 32 32" aria-hidden="true">
+              <path d="M13 5H7.5A2.5 2.5 0 0 0 5 7.5v17A2.5 2.5 0 0 0 7.5 27H13" />
+              <path d="M17 10l6 6-6 6M10 16h13" />
+            </svg>
+            <span>Rời phòng</span>
+            <span class="settings-action-spacer" aria-hidden="true"></span>
+          </button>
+          <button id="continueGameBtn" class="settings-action continue-game-btn">
+            <svg class="settings-action-icon continue-icon" viewBox="0 0 32 32" aria-hidden="true">
+              <path d="M8 4.5 28 16 8 27.5Z" />
+            </svg>
+            <span>Tiếp tục</span>
+            <span class="settings-action-spacer" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="config.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>
