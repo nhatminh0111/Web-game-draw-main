@@ -203,6 +203,28 @@ body { margin: 0; overflow: hidden; }
 }
 .tool-btn:hover { background: rgba(255,255,255,.2); }
 .tool-btn.active { background: rgba(76, 217, 100, .3); }
+.modal-content.results-modal { box-sizing: border-box; min-width: 0; width: min(520px, 94vw); max-height: 90vh; padding: 28px 20px; overflow-y: auto; }
+.results-modal p { color: #cbd5e1; text-align: center; }
+.results-table { width: 100%; border-collapse: collapse; color: #fff; margin: 24px 0; }
+.results-table th, .results-table td { padding: 12px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.15); }
+.results-table th:last-child, .results-table td:last-child { text-align: right; }
+.results-table tbody tr:first-child { background: rgba(255,215,0,.15); }
+.results-player { display: flex; align-items: center; gap: 10px; overflow-wrap: anywhere; }
+.results-avatar { font-size: 30px; flex-shrink: 0; }
+.results-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.results-actions button { flex: 1; padding: 12px 16px; border: 0; border-radius: 8px; background: #4cd964; color: #102b19; font: inherit; font-weight: 700; cursor: pointer; }
+.results-actions button:last-child { background: #e2e8f0; color: #1e293b; }
+.results-actions button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.results-actions button:disabled { opacity: .65; cursor: wait; }
+#restartStatus:empty { display: none; }
+.eraser-icon {
+  display: block;
+  width: 36px;
+  height: 36px;
+  max-width: 100%;
+  margin: auto;
+  pointer-events: none;
+}
 
 .brush-size {
   display: flex;

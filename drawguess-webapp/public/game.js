@@ -65,6 +65,8 @@
   let currentDrawerId = null;
   let isDrawer = false;
   let allPlayers = [];
+  let gameOver = false;
+  let roundActive = false;
   
   // UI Elements
   const chatPanel = document.getElementById('chatPanel');
@@ -90,6 +92,40 @@
   const leaveRoomBtn = document.getElementById('leaveRoomBtn');
   const continueGameBtn = document.getElementById('continueGameBtn');
   const playersPanel = document.querySelector('.players-panel');
+  const resultsModal = document.getElementById('resultsModal');
+  const resultsRows = document.getElementById('resultsRows');
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  const restartStatus = document.getElementById('restartStatus');
+  let restartPending = false;
+
+  function resetRestartButton() {
+    restartPending = false;
+    playAgainBtn.disabled = false;
+    playAgainBtn.textContent = 'Play Again';
+    restartStatus.textContent = '';
+  }
+
+  function restartGame() {
+    if (restartPending) return;
+    if (!socket.connected) {
+      restartStatus.textContent = 'Connection lost. Please wait for the server to reconnect.';
+      return;
+    }
+    restartPending = true;
+    playAgainBtn.disabled = true;
+    playAgainBtn.textContent = 'Restarting...';
+    restartStatus.textContent = 'Starting a new game for everyone...';
+    socket.timeout(8000).emit('restart-game', (error, response) => {
+      // game-reset can arrive before the acknowledgement, or from another player.
+      if (!restartPending) return;
+      resetRestartButton();
+      if (error) {
+        restartStatus.textContent = 'The server did not respond. Restart or update the game server, then try again.';
+      } else if (!response?.success) {
+        restartStatus.textContent = response?.message || 'Unable to restart the game. Please try again.';
+      }
+    });
+  }
 
   // Drawing state
   let isDrawing = false;
@@ -146,6 +182,7 @@
   });
 
   socket.on('game-state', (data) => {
+    roundActive = data.phase === 'drawing';
     allPlayers = data.players;
     currentDrawerId = data.currentDrawer;
     isDrawer = (currentDrawerId === myPlayerId);
@@ -154,6 +191,7 @@
     updateRoleUI();
     
     roundEl.textContent = data.round;
+    totalRoundsEl.textContent = data.maxRounds;
     timerEl.textContent = data.timeLeft;
   });
 
@@ -184,12 +222,14 @@
   });
 
   socket.on('word-selected', (data) => {
+    roundActive = true;
     // Người vẽ thấy từ gốc, không che
     wordHint.textContent = `DRAW THIS: ${data.word}`;
     drawingStatus.textContent = `Your word is: "${data.word}"`;
   });
 
   socket.on('word-hint', (data) => {
+    roundActive = true;
     wordHint.textContent = `GUESS THIS: ${data.hint.split('').join(' ')}`;
     const drawer = allPlayers.find(p => p.id === currentDrawerId);
     drawingStatus.textContent = `${drawer ? drawer.name : 'Someone'} is drawing...`;
@@ -197,6 +237,13 @@
   });
 
   socket.on('next-round', (data) => {
+    roundActive = false;
+    stopDrawing();
+    wordModal.classList.add('hidden');
+    wordChoices.replaceChildren();
+    if (data.players) allPlayers = data.players;
+    if (data.timeLeft !== undefined) timerEl.textContent = data.timeLeft;
+    if (data.maxRounds !== undefined) totalRoundsEl.textContent = data.maxRounds;
     console.log('=== [CLIENT] NEXT-ROUND EVENT ===');
     console.log('Round:', data.round);
     console.log('New drawer ID:', data.currentDrawer);
@@ -223,6 +270,9 @@
   });
 
   socket.on('round-end', (data) => {
+    roundActive = false;
+    stopDrawing();
+    wordModal.classList.add('hidden');
     addSystemMessage(`⏰ Time's up! The word was: "${data.word}"`);
     data.scores.forEach(({ id, score }) => {
       const player = allPlayers.find(p => p.id === id);
@@ -233,13 +283,89 @@
   });
 
   socket.on('game-over', (data) => {
+    resetRestartButton();
     addSystemMessage('🎉 Game Over! Thanks for playing! 🎉');
-    // TODO: Hiển thị bảng xếp hạng cuối cùng
+    gameOver = true;
+    roundActive = false;
+    stopDrawing();
+    isDrawer = false;
+    wordModal.classList.add('hidden');
+    closeSettingsModal();
+    palettePanel.style.display = 'none';
+    chatInput.disabled = true;
+    sendChatBtn.disabled = true;
+    drawingStatus.textContent = 'Game over';
+    allPlayers = data.scores;
+    updatePlayersList();
+    resultsRows.replaceChildren();
+    [...allPlayers].sort((a, b) => b.score - a.score).forEach((player, index) => {
+      const row = document.createElement('tr');
+      const rank = document.createElement('td');
+      rank.textContent = `#${index + 1}`;
+      const identity = document.createElement('td');
+      const playerInfo = document.createElement('div');
+      playerInfo.className = 'results-player';
+      const avatar = document.createElement('span');
+      avatar.className = 'results-avatar';
+      avatar.textContent = player.avatar || '😀';
+      const name = document.createElement('span');
+      name.textContent = player.name;
+      playerInfo.append(avatar, name);
+      identity.append(playerInfo);
+      const score = document.createElement('td');
+      score.textContent = player.score || 0;
+      row.append(rank, identity, score);
+      resultsRows.append(row);
+    });
+    resultsModal.classList.remove('hidden');
+    resultsModal.setAttribute('aria-hidden', 'false');
+    playAgainBtn.focus();
+  });
+
+  socket.on('game-reset', (data) => {
+    resetRestartButton();
+    gameOver = false;
+    roundActive = false;
+    localStorage.removeItem('dg:roomPassword');
+    resultsModal.classList.add('hidden');
+    resultsModal.setAttribute('aria-hidden', 'true');
+    resultsRows.replaceChildren();
+    wordModal.classList.add('hidden');
+    wordChoices.replaceChildren();
+    closeSettingsModal();
+    allPlayers = data.players;
+    currentDrawerId = data.currentDrawer;
+    isDrawer = currentDrawerId === myPlayerId;
+    stopDrawing();
+    clearCanvas();
+    currentColor = '#000000';
+    currentTool = 'pen';
+    brushSize = 5;
+    lastX = 0;
+    lastY = 0;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.beginPath();
+    brushSizeInput.value = 5;
+    brushSizeLabel.textContent = '5';
+    colorGrid.querySelectorAll('.color-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.color === currentColor);
+    });
+    updateToolButtons();
+    chatMessages.replaceChildren();
+    chatInput.value = '';
+    roundEl.textContent = data.round;
+    totalRoundsEl.textContent = data.maxRounds;
+    timerEl.textContent = data.timeLeft;
+    wordHint.textContent = 'GUESS THIS: _ _ _ _ _';
+    updatePlayersList();
+    updateRoleUI();
+    addSystemMessage('New game! Scores have been reset.');
+    settingsBtn.focus();
   });
 
   socket.on('draw', (data) => {
     console.log('[CLIENT] Received draw event, isDrawer:', isDrawer);
-    if (!isDrawer) {
+    if (!isDrawer && !gameOver && roundActive) {
       console.log('[CLIENT] Drawing remote stroke:', data);
       drawRemote(data);
     }
@@ -315,7 +441,7 @@
 
   function startDrawing(e) {
     console.log('[startDrawing] isDrawer:', isDrawer);
-    if (!isDrawer) {
+    if (!isDrawer || !roundActive || gameOver) {
       console.log('[startDrawing] Not drawer, ignoring');
       return;
     }
@@ -329,7 +455,7 @@
   }
 
   function draw(e) {
-    if (!isDrawing || !isDrawer) return;
+    if (!isDrawing || !isDrawer || !roundActive || gameOver) return;
     const { x, y } = getCanvasCoords(e);
     
     drawLocal(lastX, lastY, x, y, currentColor, brushSize, currentTool);
@@ -579,6 +705,19 @@
     settingsBtn?.addEventListener('click', openSettingsModal);
     continueGameBtn?.addEventListener('click', closeSettingsModal);
     leaveRoomBtn?.addEventListener('click', leaveRoom);
+    playAgainBtn.addEventListener('click', restartGame);
+    document.getElementById('mainMenuBtn').addEventListener('click', leaveRoom);
+    resultsModal.addEventListener('keydown', (event) => {
+      if (event.key !== 'Tab') return;
+      const mainMenuBtn = document.getElementById('mainMenuBtn');
+      if (event.shiftKey && document.activeElement === playAgainBtn) {
+        event.preventDefault();
+        mainMenuBtn.focus();
+      } else if (!event.shiftKey && document.activeElement === mainMenuBtn) {
+        event.preventDefault();
+        playAgainBtn.focus();
+      }
+    });
     settingsModal?.addEventListener('click', (event) => {
       if (event.target === settingsModal) closeSettingsModal();
     });
@@ -594,7 +733,6 @@
     setupTools();
     setupDrawing();
     setupChat();
-    restorePlayerName();
     console.log('[init] Initialization complete!');
   }
 

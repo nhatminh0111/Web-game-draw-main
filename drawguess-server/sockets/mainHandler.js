@@ -178,11 +178,29 @@ module.exports = function(gameNamespace) {
         
         broadcastRoomListUpdate();
 
-        if (room.players.length >= 2 && !room.currentWord) {
+        if (room.players.length >= 2 && room.phase === 'waiting') {
             console.log('🎮 Starting new round (2+ players)');
             startNewRound(room);
         }
         console.log('=== [SERVER] JOIN-GAME COMPLETE ===\n');
+    });
+
+    socket.on('restart-game', (callback) => {
+        const reply = typeof callback === 'function' ? callback : () => {};
+        const player = players.get(socket.id);
+        const room = player && rooms.get(player.roomId);
+        if (!player) return reply({ success: false, message: 'You are no longer connected to this room. Please return to the Main Menu and join again.' });
+        if (!room) return reply({ success: false, message: 'This room no longer exists. Please return to the Main Menu.' });
+        if (!room.isGameOver) return reply({ success: false, message: 'The game has already restarted or has not finished yet.' });
+        room.resetGame();
+        room.players.forEach(member => {
+            const memberSocket = gameNamespace.sockets.get(member.id);
+            if (memberSocket) memberSocket.drawCount = 0;
+        });
+        room.broadcast('game-reset', room.getState());
+        if (room.players.length >= 2) startNewRound(room);
+        broadcastRoomListUpdate();
+        reply({ success: true });
     });
 
     socket.on('select-word', (data) => {
@@ -196,10 +214,11 @@ module.exports = function(gameNamespace) {
             return;
         }
         const room = rooms.get(player.roomId);
-        if (!room) {
+        if (!room || room.isGameOver) {
             console.log('❌ Room not found');
             return;
         }
+        if (room.phase !== 'choosing' || typeof data.word !== 'string' || !data.word.trim()) return;
         if (room.currentDrawerId !== socket.id) {
             console.log('❌ Not the current drawer');
             return;
@@ -210,6 +229,7 @@ module.exports = function(gameNamespace) {
         }
 
         room.currentWord = data.word;
+        room.phase = 'drawing';
         console.log('✅ Word set:', data.word);
         socket.emit('word-selected', { word: data.word });
 
@@ -228,6 +248,8 @@ module.exports = function(gameNamespace) {
             console.log('❌ [DRAW] Player not found:', socket.id);
             return;
         }
+        const room = rooms.get(player.roomId);
+        if (!room || room.phase !== 'drawing' || room.currentDrawerId !== socket.id) return;
         // Log mỗi 10 draw để tránh spam
         if (!socket.drawCount) socket.drawCount = 0;
         socket.drawCount++;
@@ -241,6 +263,8 @@ module.exports = function(gameNamespace) {
     socket.on('clear-canvas', () => {
         const player = players.get(socket.id);
         if (!player) return;
+        const room = rooms.get(player.roomId);
+        if (!room || room.phase !== 'drawing' || room.currentDrawerId !== socket.id) return;
         socket.to(player.roomId).emit('clear-canvas');
     });
 
@@ -297,6 +321,7 @@ module.exports = function(gameNamespace) {
 
             if (room.players.length === 0) {
                 room.stopTimer();
+                room.cancelNextRound();
                 rooms.delete(player.roomId);
                 broadcastRoomListUpdate();
                 console.log(`[DELETE] Room ${player.roomId} is empty and has been deleted.`);
@@ -312,6 +337,11 @@ module.exports = function(gameNamespace) {
     // --- CÁC HÀM LOGIC GAME ---
     
     function startNewRound(room) {
+        if (rooms.get(room.roomId) !== room || room.isGameOver || room.players.length === 0) return;
+        room.cancelNextRound();
+        room.stopTimer();
+        room.phase = 'choosing';
+        room.timeLeft = room.roundTime;
         console.log('\n=== [SERVER] START NEW ROUND ===');
         console.log('Room:', room.roomId);
         console.log('Round:', room.round);
@@ -325,6 +355,9 @@ module.exports = function(gameNamespace) {
         const drawerId = room.currentDrawerId;
         const drawerSocket = gameNamespace.sockets.get(drawerId);
         const drawerPlayer = players.get(drawerId);
+
+        // Publish the new role and timer before opening the word picker.
+        room.broadcast('next-round', room.getState());
         
         console.log('Drawer player info:', drawerPlayer ? drawerPlayer.name : 'NOT FOUND');
         console.log('Drawer socket connected?', !!drawerSocket);
@@ -341,14 +374,12 @@ module.exports = function(gameNamespace) {
         }
         
         console.log('📢 Broadcasting next-round event...');
-        room.broadcast('next-round', {
-            round: room.round,
-            currentDrawer: drawerId
-        });
         console.log('=== [SERVER] START NEW ROUND COMPLETE ===\n');
     }
     
     function handleRoundEnd(room) {
+        if (rooms.get(room.roomId) !== room || room.phase !== 'drawing') return;
+        room.phase = 'intermission';
         console.log('\n=== [SERVER] ROUND END ===');
         console.log('Room:', room.roomId);
         console.log('Word was:', room.currentWord);
@@ -370,15 +401,19 @@ module.exports = function(gameNamespace) {
         
         if (room.round > room.maxRounds) {
             console.log('🎉 Game over! Max rounds reached.');
+            room.isGameOver = true;
+            room.phase = 'finished';
             room.broadcast('game-over', { scores: room.getState().players });
-            rooms.delete(room.roomId);
             broadcastRoomListUpdate();
         } else {
             console.log('🔄 Moving to next drawer...');
             room.nextDrawer();
             console.log('Next drawer ID:', room.currentDrawerId);
             console.log('⏳ Waiting 5s before starting next round...');
-            setTimeout(() => startNewRound(room), 5000); // Đợi 5s cho vòng mới
+            room.nextRoundTimer = setTimeout(() => {
+                room.nextRoundTimer = null;
+                startNewRound(room);
+            }, 5000);
         }
         console.log('=== [SERVER] ROUND END COMPLETE ===\n');
     }

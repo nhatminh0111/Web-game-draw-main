@@ -27,7 +27,24 @@ class GameRoom {
     this.round = 1;
     this.timeLeft = this.roundTime;
     this.timer = null;
+    this.nextRoundTimer = null;
+    this.phase = 'waiting';
     this.isGameStarted = false;
+    this.isGameOver = false;
+  }
+
+  resetGame() {
+    this.stopTimer();
+    this.cancelNextRound();
+    const connectedPlayers = this.players;
+    const freshRoom = new GameRoom(this.roomId, this.broadcast, {
+      customName: this.customName,
+    });
+    Object.assign(this, freshRoom);
+    connectedPlayers.forEach(player => {
+      player.events = [];
+      this.addPlayer(player);
+    });
   }
 
   addPlayer(player) {
@@ -89,6 +106,13 @@ class GameRoom {
     }
   }
 
+  cancelNextRound() {
+    if (this.nextRoundTimer !== null) {
+      clearTimeout(this.nextRoundTimer);
+      this.nextRoundTimer = null;
+    }
+  }
+
   getState() {
     return {
       players: this.players.map(p => ({
@@ -98,6 +122,7 @@ class GameRoom {
       round: this.round,
       maxRounds: this.maxRounds,
       timeLeft: this.timeLeft,
+      phase: this.phase,
     };
   }
 
